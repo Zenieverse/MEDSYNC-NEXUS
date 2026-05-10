@@ -1,0 +1,6 @@
+{
+  "name": "MedSync Nexus",
+  "description": "Composable Healthcare Intelligence Powered by Interoperable Agents. Enterprise-style care coordination platform automating post-discharge workflows using FHIR and multi-agent orchestration.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["AI Agents", "FHIR Interoperability", "Healthcare Workflows", "Multi-Agent Orchestration"],
+}

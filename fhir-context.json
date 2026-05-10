@@ -1,0 +1,7 @@
+{
+  "contextId": "ctx-99281",
+  "organization": "Prompt Opinion Health",
+  "scope": "care-coordination.read care-coordination.write",
+  "roles": ["coordinator", "physician", "agent"],
+  "security": "SHARP-Level-3"
+}
