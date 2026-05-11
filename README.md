@@ -1,6 +1,8 @@
 # MedSync Nexus
 ## Composable Healthcare Intelligence Powered by Interoperable Agents
 
+https://ais-pre-btrm7bi753fbem2daoyn2b-393352619239.asia-southeast1.run.app
+
 MedSync Nexus is a production-grade AI care coordination platform designed for the **“Agents Assemble: The Healthcare AI Endgame Challenge”**. It demonstrates a vision of the healthcare future where specialized AI agents collaborate across clinical and operational boundaries using interoperable standards like FHIR and the Model Context Protocol (MCP).
 
 ---
