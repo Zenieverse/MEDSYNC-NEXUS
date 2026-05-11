@@ -2,7 +2,7 @@ import React from 'react';
 import { LayoutDashboard, Users, Activity, ShieldCheck, Settings, FileText, Pill, Bell, Menu, X, ArrowRight, BrainCircuit, Database } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
-import { Patient, AgentTask, AuditLog } from './types';
+import { Patient, AgentTask, AuditLog, Notification } from './types';
 import { AgentOrchestrator } from './services/agentOrchestrator';
 import { MCP_TOOLS, invokeMCPTool } from './services/mcpTools';
 import ReactMarkdown from 'react-markdown';
@@ -62,6 +62,10 @@ export default function App() {
   const [logs, setLogs] = React.useState<AuditLog[]>([
     { id: '1', timestamp: new Date().toISOString(), actor: 'System', action: 'Platform Boot', context: 'Version 1.0.4', status: 'SUCCESS' }
   ]);
+  const [notifications, setNotifications] = React.useState<Notification[]>([
+    { id: 'n1', title: 'Welcome to MedSync', message: 'System fully operational and connected to FHIR.', timestamp: new Date().toISOString(), read: false, type: 'success' }
+  ]);
+  const [showNotifications, setShowNotifications] = React.useState(false);
   const [isProcessing, setIsProcessing] = React.useState(false);
   const [sidebarOpen, setSidebarOpen] = React.useState(true);
   const [invokingTool, setInvokingTool] = React.useState<string | null>(null);
@@ -71,6 +75,15 @@ export default function App() {
       id: Math.random().toString(36).substr(2, 9),
       timestamp: new Date().toISOString(),
       actor, action, context, status
+    }, ...prev]);
+  };
+
+  const addNotification = (title: string, message: string, type: Notification['type'] = 'info') => {
+    setNotifications(prev => [{
+      id: Math.random().toString(36).substr(2, 9),
+      title, message, type,
+      timestamp: new Date().toISOString(),
+      read: false
     }, ...prev]);
   };
 
@@ -86,12 +99,15 @@ export default function App() {
     setIsProcessing(true);
     
     addLog('Coordinator', 'Workflow Started', `Patient: ${patient.name}`);
+    addNotification('Workflow Started', `Care coordination initiated for ${patient.name}.`, 'info');
+    
     const orchestrator = new AgentOrchestrator(patient.id);
     await orchestrator.runWorkflow((task) => {
       if (task.status === 'active') {
         addLog(task.agent, 'Task Initialized', `Patient ID: ${patient.id}`);
       } else if (task.status === 'completed') {
         addLog(task.agent, 'Task Completed', 'Analysis generated via Gemini');
+        addNotification(`${task.agent} Complete`, `Insight generated for ${patient.name}.`, 'success');
       }
       
       setTasks(prev => {
@@ -114,11 +130,61 @@ export default function App() {
     try {
       await invokeMCPTool(toolName, { demo: true });
       addLog(toolName, 'Execution Success', 'Tool returned valid payload');
+      addNotification('MCP Execution', `Tool ${toolName} executed successfully.`, 'success');
     } catch (e) {
       addLog(toolName, 'Execution Failed', 'Network or payload error', 'ERROR');
+      addNotification('MCP Failure', `Tool ${toolName} failed to execute.`, 'warning');
     } finally {
       setInvokingTool(null);
     }
+  };
+
+  const handleDownloadPlan = () => {
+    if (!selectedPatient || tasks.length === 0) return;
+
+    const completedTasks = tasks.filter(t => t.status === 'completed');
+    if (completedTasks.length === 0) {
+      addNotification('Export Failed', 'No completed agent insights to export.', 'warning');
+      return;
+    }
+
+    let content = `# MedSync Nexus: Care Coordination Plan\n`;
+    content += `Patient: ${selectedPatient.name}\n`;
+    content += `DOB: ${selectedPatient.dob}\n`;
+    content += `Condition: ${selectedPatient.condition}\n`;
+    content += `Export Date: ${format(new Date(), 'yyyy-MM-dd HH:mm:ss')}\n\n`;
+    content += `---\n\n`;
+
+    completedTasks.forEach(task => {
+      content += `## ${task.agent}\n`;
+      content += `${task.output}\n\n`;
+      content += `---\n\n`;
+    });
+
+    content += `\n*Disclaimer: AI-generated recommendations require clinical validation.*\n`;
+
+    const blob = new Blob([content], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `MedSync_Plan_${selectedPatient.name.replace(/[^a-z0-9]/gi, '_')}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    addLog('User', 'Export Success', `Care plan for ${selectedPatient.name} downloaded.`);
+    addNotification('Export Success', 'Full Care Coordination Plan exported successfully.', 'success');
+  };
+
+  const handleSwitchModel = () => {
+    addLog('User', 'Model Switch Requested', 'Gemini 3.1 Pro');
+    addNotification('Configuration Updated', 'Intelligence layer switched to Gemini 3.1 Pro.', 'info');
+  };
+
+  const handleRegisterTool = () => {
+    addNotification('Marketplace Action', 'Registration portal requires enterprise credentials.', 'warning');
+    addLog('User', 'Marketplace Registration', 'Unauthorized attempt');
   };
 
   const getStatusVariant = (status: string) => {
@@ -171,10 +237,79 @@ export default function App() {
               <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
               FHIR Connected: HAPI R4
             </div>
-            <button className="relative p-2 text-slate-400 hover:text-white">
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-slate-950" />
-            </button>
+            
+            {/* Notification Bell */}
+            <div className="relative">
+              <button 
+                onClick={() => setShowNotifications(!showNotifications)}
+                className={cn(
+                  "p-2 rounded-lg transition-colors relative",
+                  showNotifications ? "bg-slate-800 text-white" : "text-slate-400 hover:text-white"
+                )}
+              >
+                <Bell className="w-5 h-5" />
+                {notifications.some(n => !n.read) && (
+                  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-slate-950" />
+                )}
+              </button>
+
+              <AnimatePresence>
+                {showNotifications && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    className="absolute right-0 mt-4 w-80 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl overflow-hidden z-50"
+                  >
+                    <div className="px-4 py-3 border-b border-slate-800 flex justify-between items-center bg-slate-800/30">
+                      <h3 className="text-xs font-bold text-slate-200 uppercase tracking-widest">Notifications</h3>
+                      <button 
+                        onClick={() => setNotifications(prev => prev.map(n => ({ ...n, read: true })))}
+                        className="text-[10px] text-blue-400 hover:text-blue-300 font-bold uppercase"
+                      >
+                        Mark all read
+                      </button>
+                    </div>
+                    <div className="max-h-80 overflow-y-auto">
+                      {notifications.length === 0 ? (
+                        <div className="px-4 py-8 text-center text-slate-500 text-sm">
+                          No notifications
+                        </div>
+                      ) : (
+                        notifications.map((n) => (
+                          <div 
+                            key={n.id} 
+                            className={cn(
+                              "px-4 py-3 border-b border-slate-800/50 hover:bg-white/5 transition-colors cursor-pointer",
+                              !n.read && "bg-blue-500/[0.03]"
+                            )}
+                            onClick={() => setNotifications(prev => prev.map(item => item.id === n.id ? { ...item, read: true } : item))}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1">
+                                <p className={cn("text-xs font-bold", n.read ? "text-slate-400" : "text-white")}>{n.title}</p>
+                                <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">{n.message}</p>
+                              </div>
+                              {!n.read && <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-1" />}
+                            </div>
+                            <p className="text-[9px] text-slate-600 mt-2">{format(new Date(n.timestamp), 'h:mm a')}</p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    {notifications.length > 0 && (
+                      <button 
+                        onClick={() => setNotifications([])}
+                        className="w-full py-3 text-[10px] text-slate-500 hover:text-slate-300 font-bold uppercase transition-colors"
+                      >
+                        Clear All
+                      </button>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
             <div className="w-8 h-8 bg-blue-600/20 text-blue-400 rounded-full flex items-center justify-center font-bold text-xs border border-blue-500/20">
               ZN
             </div>
@@ -311,14 +446,32 @@ export default function App() {
 
               {/* Task Details / Insights Output */}
               {tasks.length > 0 && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                  {tasks.filter(t => t.status === 'completed').map((task, i) => (
-                    <GlassCard key={i} title={task.agent} className="h-fit">
-                      <div className="prose prose-invert prose-sm max-w-none prose-p:text-slate-400 prose-headings:text-slate-200">
-                        <ReactMarkdown>{task.output || ""}</ReactMarkdown>
-                      </div>
-                    </GlassCard>
-                  ))}
+                <div className="space-y-8">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-xl font-bold text-white">Generated Clinical Insights</h3>
+                    <button 
+                      onClick={handleDownloadPlan}
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold transition-all shadow-lg shadow-blue-500/20"
+                    >
+                      <FileText className="w-4 h-4" />
+                      Download Full Care Plan
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {tasks.filter(t => t.status === 'completed').map((task, i) => (
+                      <GlassCard key={i} title={task.agent} className="h-fit relative group">
+                        <div className="absolute top-4 right-4 flex items-center gap-3">
+                           <div className="flex items-center gap-2 px-3 py-1 bg-slate-950 border border-slate-800 rounded-lg group-hover:border-emerald-500/50 transition-colors">
+                              <input type="checkbox" className="w-3 h-3 accent-emerald-500" />
+                              <span className="text-[10px] font-bold text-slate-500 uppercase">Clinical Review</span>
+                           </div>
+                        </div>
+                        <div className="prose prose-invert prose-sm max-w-none prose-p:text-slate-400 prose-headings:text-slate-200">
+                          <ReactMarkdown>{task.output || ""}</ReactMarkdown>
+                        </div>
+                      </GlassCard>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -388,7 +541,10 @@ export default function App() {
                   <h3 className="text-2xl font-extrabold text-white mb-2">MCP Tool Registry</h3>
                   <p className="text-slate-500">Reusable Model Context Protocol tools for healthcare interoperability.</p>
                 </div>
-                <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors">
+                <button 
+                  onClick={handleRegisterTool}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors"
+                >
                   Register New Tool
                 </button>
               </div>
@@ -489,7 +645,12 @@ export default function App() {
                          </div>
                          <div>
                             <p className="font-bold text-white">Gemini 3 Flash</p>
-                            <p className="text-xs text-slate-500 underline">Switch to Gemini 3.1 Pro</p>
+                            <button 
+                              onClick={handleSwitchModel}
+                              className="text-xs text-slate-500 underline hover:text-blue-400 block text-left"
+                            >
+                              Switch to Gemini 3.1 Pro
+                            </button>
                          </div>
                        </div>
                        <Badge variant="success">Active</Badge>

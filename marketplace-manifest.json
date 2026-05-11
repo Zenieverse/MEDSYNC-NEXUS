@@ -1,0 +1,29 @@
+{
+  "id": "medsync-nexus-001",
+  "version": "1.0.4",
+  "author": "Agents Assemble Team",
+  "capabilities": [
+    "Care Coordination",
+    "FHIR R4 Parsing",
+    "Multi-Agent Orchestration",
+    "Medication Safety Analysis",
+    "Prior Auth Generation"
+  ],
+  "integrations": [
+    {
+      "type": "FHIR",
+      "version": "R4",
+      "status": "Production-Ready"
+    },
+    {
+      "type": "MCP",
+      "protocol": "Model Context Protocol v1.0",
+      "tools": ["MedicationSafety", "SummaryGen", "RiskPredictor"]
+    }
+  ],
+  "security": {
+    "protocol": "SHARP Context Propagation",
+    "audit_logging": "Mandatory",
+    "encryption": "AES-256 (Simulated)"
+  }
+}
